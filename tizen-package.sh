@@ -2,7 +2,8 @@
 
 script="${BASH_SOURCE[0]}"
 script_name=${script##*/}
-script_dir=$(readlink -f $(dirname $script))
+script_dir=$(dirname $(readlink -f $script))
+
 
 RXP_PACKAGE_NAME="[a-zA-Z0-9_]"
 
@@ -29,8 +30,6 @@ while [[ "${1:0:2}" == "--" ]]; do
     options[$option]=${value:-true}
 done
 
-
-share_dir="${HOME}/.local/share/tizen-packager"
 working_dir=$PWD
 tizen_dir="${working_dir}/tizen"
 build_dir="${tizen_dir}/build"
@@ -86,7 +85,7 @@ create_config() {
 
   echo "pkg_name: $pkg_name"
   mkdir "$tizen_dir"
-  cp -v "${share_dir}/config.xml" "$tizen_dir"
+  cp -v "${script_dir}/config.xml" "$tizen_dir"
   pkg_id="$(tr -cd "a-zA-Z0-9" < /dev/random | head -c 1024 | grep -Eo "[^0-9][a-zA-Z0-9]{9}" | head -n 1)"
   pkg_version="0.0.1"
   sed "s/%PKG_ID%/${pkg_id}/g" -i "${tizen_dir}/config.xml"
@@ -94,10 +93,10 @@ create_config() {
   sed "s/%PKG_VERSION%/${pkg_version}/g" -i "${tizen_dir}/config.xml"
   if [[ -z "$(which convert)" ]]; then 
     echo "Needs ImageMagick to generate icon, copying the default icon..."
-    cp -v "${share_dir}/icon.png" "${tizen_dir}/icon.png"
+    cp -v "${script_dir}/icon.png" "${tizen_dir}/icon.png"
     exit 1
   fi
-  convert "${share_dir}/icon.png" -fill white -gravity South -pointsize 90 -annotate +0+100 "$pkg_name" "${tizen_dir}/icon.png"
+  convert "${script_dir}/icon.png" -fill white -gravity South -pointsize 90 -annotate +0+100 "$pkg_name" "${tizen_dir}/icon.png"
 }
 
 connect() {
@@ -113,12 +112,17 @@ build() {
   rm -r "${build_dir}"
   mkdir -v "${build_dir}"
 
-  if [[ -d $dist ]]; then
+  if [[ "${options[redirect]}" ]]; then
+    cp -v "${script_dir}/redirect.html" "${build_dir}/index.html"
+    redirect=$(echo "${options[redirect]}"  | sed 's/\//\\\//g')
+    sed "s/%REDIRECT_URL%/${redirect}/g" -i "${build_dir}/index.html"
+    cat "${build_dir}/index.html"
+  elif [[ -d $dist ]]; then
     cp -rv "${dist}"/* "${build_dir}"
   elif [[ -e $dist ]]; then
     cp -v "${dist}" "${build_dir}/index.html"
   else
-    error_message "No di files found: ${dist}"
+    error_message "No dist files found: ${dist}"
     exit 1
   fi
 
